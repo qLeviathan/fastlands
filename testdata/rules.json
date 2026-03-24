@@ -1,0 +1,44 @@
+{
+  "name": "supply-chain-rules",
+  "domain": "logistics",
+  "thresholds": {"low": 3, "mid": 5, "high": 7},
+  "rules": [
+    {
+      "id": "coa-r1",
+      "head": {"predicate": "defend"},
+      "body": [
+        {"predicate": "has_feature", "args": ["threat_level", "high"]},
+        {"predicate": "has_feature", "args": ["supply_available", "low"]}
+      ]
+    },
+    {
+      "id": "coa-r2",
+      "head": {"predicate": "expand"},
+      "body": [
+        {"predicate": "has_feature", "args": ["threat_level", "low"]},
+        {"predicate": "has_feature", "args": ["supply_available", "high"]}
+      ]
+    },
+    {
+      "id": "coa-r3",
+      "head": {"predicate": "hold"},
+      "body": [
+        {"predicate": "has_feature", "args": ["threat_level", "mid"]},
+        {"predicate": "has_feature", "args": ["supply_available", "mid"]}
+      ]
+    },
+    {
+      "id": "coa-r4",
+      "head": {"predicate": "defend"},
+      "body": [
+        {"predicate": "has_feature", "args": ["demand", "high"]},
+        {"predicate": "has_feature", "args": ["supply_available", "low"]}
+      ]
+    }
+  ],
+  "labels": [
+    {"atom": "defend", "label": "defend"},
+    {"atom": "expand", "label": "expand"},
+    {"atom": "hold", "label": "hold"}
+  ]
+}

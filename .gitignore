@@ -1,0 +1,34 @@
+# Binary
+caslo
+fastlands
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test
+*.test
+*.out
+coverage.html
+
+# Runtime data
+data/memory.json
+data/datasets/*.csv
+data/rules/*.json
+!data/rules/.gitkeep
+!data/datasets/.gitkeep
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go
+vendor/
