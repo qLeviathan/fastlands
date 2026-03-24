@@ -17,21 +17,31 @@ import (
 	"github.com/qleviathan/fastlands/oeis"
 	"github.com/qleviathan/fastlands/pipeline"
 	"github.com/qleviathan/fastlands/report"
+	"github.com/qleviathan/fastlands/self"
 )
 
 // REPL is the interactive command loop.
 type REPL struct {
-	Engine  *ar.Engine
-	Memory  *memory.Store
-	Catalog *oeis.Catalog
+	Engine   *ar.Engine
+	Memory   *memory.Store
+	Catalog  *oeis.Catalog
+	Identity *self.Identity
 }
 
 // New creates a REPL connected to the given engine and memory store.
 func New(engine *ar.Engine, mem *memory.Store) *REPL {
+	id := self.NewIdentity()
+	// Seed the self-model with what we know at init time.
+	id.UpdateState(self.SystemState{
+		RulesActive:   len(engine.Rules),
+		PatternsKnown: len(mem.GetPatterns()),
+		FactsLearned:  len(mem.Facts),
+	})
 	return &REPL{
-		Engine:  engine,
-		Memory:  mem,
-		Catalog: oeis.NewCatalog(),
+		Engine:   engine,
+		Memory:   mem,
+		Catalog:  oeis.NewCatalog(),
+		Identity: id,
 	}
 }
 
@@ -103,6 +113,18 @@ func (r *REPL) processCommand(line string) string {
 	case "run":
 		return r.cmdRun()
 
+	case "self":
+		return r.cmdSelf()
+
+	case "explain":
+		return r.cmdExplain()
+
+	case "suggest":
+		return r.cmdSuggest()
+
+	case "introspect":
+		return r.cmdIntrospect()
+
 	default:
 		return fmt.Sprintf("unknown command: %s (type 'help' for available commands)", cmd)
 	}
@@ -120,6 +142,10 @@ func helpText() string {
 	b.WriteString("  oeis <n1> <n2> <n3> ...       validate integer sequence against catalog\n")
 	b.WriteString("  basis <n>                     show canonical decomposition of integer n\n")
 	b.WriteString("  run                           run full pipeline with defaults\n")
+	b.WriteString("  self                          show Caslo's self-model and state\n")
+	b.WriteString("  explain                       Caslo explains what it is and does\n")
+	b.WriteString("  suggest                       get next recommended action\n")
+	b.WriteString("  introspect                    generate insights from current state\n")
 	b.WriteString("  quit / exit                   exit the shell\n")
 	return b.String()
 }
@@ -281,6 +307,16 @@ func (r *REPL) cmdRun() string {
 
 	result := pipeline.Run(cfg)
 
+	// Update self-model with pipeline results.
+	r.Identity.UpdateState(self.SystemState{
+		RunCount:      len(r.Memory.RunHistory) + 1,
+		PatternsKnown: len(r.Memory.GetPatterns()),
+		RulesActive:   len(r.Engine.Rules),
+		FactsLearned:  len(r.Memory.Facts),
+		Accuracy:      result.Accuracy,
+		RewriteCount:  len(result.RewriteActions),
+	})
+
 	rpt := report.Generate(
 		"REPL Pipeline Run",
 		result.Results,
@@ -293,4 +329,38 @@ func (r *REPL) cmdRun() string {
 	)
 
 	return report.Format(rpt)
+}
+
+// cmdSelf shows Caslo's full self-description.
+func (r *REPL) cmdSelf() string {
+	r.refreshSelfState()
+	return r.Identity.Describe()
+}
+
+// cmdExplain generates a natural-language self-explanation.
+func (r *REPL) cmdExplain() string {
+	r.refreshSelfState()
+	return self.ExplainSelf(r.Identity)
+}
+
+// cmdSuggest returns the next recommended action.
+func (r *REPL) cmdSuggest() string {
+	r.refreshSelfState()
+	return self.SuggestNextStep(r.Identity)
+}
+
+// cmdIntrospect generates insights from current state.
+func (r *REPL) cmdIntrospect() string {
+	r.refreshSelfState()
+	insights := self.Introspect(r.Identity)
+	return self.FormatInsights(insights)
+}
+
+// refreshSelfState syncs the self-model with current memory and engine.
+func (r *REPL) refreshSelfState() {
+	s := r.Identity.State()
+	s.PatternsKnown = len(r.Memory.GetPatterns())
+	s.RulesActive = len(r.Engine.Rules)
+	s.FactsLearned = len(r.Memory.Facts)
+	r.Identity.UpdateState(s)
 }

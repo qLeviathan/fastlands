@@ -7,18 +7,21 @@ import (
 	"github.com/qleviathan/fastlands/agents"
 	"github.com/qleviathan/fastlands/kinds"
 	"github.com/qleviathan/fastlands/memory"
+	"github.com/qleviathan/fastlands/self"
 )
 
 // Controller manages agent lifecycle, mesh networking, and task dispatch.
 type Controller struct {
-	Agents  map[string]agents.Agent
-	Mesh    *MeshNetwork
-	Scaler  *AutoScaler
-	Memory  *memory.Store
-	Boss    *agents.SuperClaudeAgent
-	mu      sync.Mutex
-	peak    int
-	log     []string
+	Agents   map[string]agents.Agent
+	Mesh     *MeshNetwork
+	Scaler   *AutoScaler
+	Memory   *memory.Store
+	Boss     *agents.SuperClaudeAgent
+	Identity *self.Identity
+	Anchors  []self.Anchor // anchors issued to spawned agents
+	mu       sync.Mutex
+	peak     int
+	log      []string
 }
 
 // NewController creates a swarm controller with boss and mesh.
@@ -27,18 +30,28 @@ func NewController(mem *memory.Store) *Controller {
 	mesh := NewMesh(32)
 	mesh.Register(boss.ID())
 
+	identity := self.NewIdentity()
+
 	c := &Controller{
-		Agents: map[string]agents.Agent{boss.ID(): boss},
-		Mesh:   mesh,
-		Scaler: NewAutoScaler(),
-		Memory: mem,
-		Boss:   boss,
-		peak:   1,
+		Agents:   map[string]agents.Agent{boss.ID(): boss},
+		Mesh:     mesh,
+		Scaler:   NewAutoScaler(),
+		Memory:   mem,
+		Boss:     boss,
+		Identity: identity,
+		peak:     1,
 	}
+
+	// Anchor the boss immediately.
+	bossAnchor := self.BuildAnchor(identity, boss.ID(), string(agents.RoleBoss))
+	c.Anchors = append(c.Anchors, bossAnchor)
+	c.log = append(c.log, fmt.Sprintf("anchored %s: %s", boss.ID(), bossAnchor.Digest()))
+
 	return c
 }
 
-// Spawn creates and registers a new agent.
+// Spawn creates and registers a new agent, issuing it an anchor
+// so it immediately understands the system it's joining.
 func (c *Controller) Spawn(agent agents.Agent) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -52,7 +65,13 @@ func (c *Controller) Spawn(agent agents.Agent) {
 	if current > c.peak {
 		c.peak = current
 	}
+
+	// Build and issue an anchor for the new agent.
+	anchor := self.BuildAnchor(c.Identity, agent.ID(), string(agent.Role()))
+	c.Anchors = append(c.Anchors, anchor)
+
 	c.log = append(c.log, fmt.Sprintf("spawned %s (role=%s)", agent.ID(), agent.Role()))
+	c.log = append(c.log, fmt.Sprintf("anchored %s: %s", agent.ID(), anchor.Digest()))
 }
 
 // Retire removes and unregisters an agent.
